@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Lyra Writer: as cores e a estrela do logo do Lyra OS sobre um pendrive. -->
+  <defs>
+    <linearGradient id="bg" x1="18" y1="10" x2="110" y2="118" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2fd0f5"/>
+      <stop offset="0.55" stop-color="#5b6cf2"/>
+      <stop offset="1" stop-color="#b14ef5"/>
+    </linearGradient>
+    <linearGradient id="strings" x1="0" y1="62" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4f8df5"/>
+      <stop offset="1" stop-color="#8b55f5"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#bg)"/>
+
+  <!-- Conector USB. -->
+  <path d="M51 22h26a3 3 0 0 1 3 3v23H48V25a3 3 0 0 1 3-3Z" fill="#e8ecff"/>
+  <rect x="56" y="30" width="6" height="6" rx="1" fill="#6a66f3"/>
+  <rect x="66" y="30" width="6" height="6" rx="1" fill="#6a66f3"/>
+
+  <!-- Corpo do pendrive. -->
+  <rect x="40" y="46" width="48" height="64" rx="11" fill="#ffffff"/>
+
+  <!-- As cordas da lira, como no logo. -->
+  <g stroke="url(#strings)" stroke-width="4" stroke-linecap="round">
+    <path d="M54 62v36"/>
+    <path d="M62 60v38"/>
+    <path d="M70 62v36"/>
+    <path d="M78 66v32"/>
+  </g>
+
+  <!-- Estrela do logo. -->
+  <path d="M100 16l3.2 9.8L113 29l-9.8 3.2L100 42l-3.2-9.8L87 29l9.8-3.2Z" fill="#ffffff"/>
+</svg>

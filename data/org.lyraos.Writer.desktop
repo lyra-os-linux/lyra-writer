@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Name=Lyra Writer
+Name[pt_BR]=Lyra Writer
+Name[es_ES]=Lyra Writer
+GenericName=Media Writer
+GenericName[pt_BR]=Gravador de mídia
+GenericName[es_ES]=Grabador de medios
+Comment=Write Lyra OS installation media to a USB stick
+Comment[pt_BR]=Grave a mídia de instalação do Lyra OS num pendrive
+Comment[es_ES]=Grabe el medio de instalación de Lyra OS en una memoria USB
+Exec=lyra-writer
+Icon=org.lyraos.Writer
+Terminal=false
+Categories=Utility;
+Keywords=usb;iso;image;installer;live;lyra;
+Keywords[pt_BR]=usb;pendrive;iso;imagem;instalação;live;lyra;
+Keywords[es_ES]=usb;memoria;iso;imagen;instalación;live;lyra;
+StartupNotify=true
