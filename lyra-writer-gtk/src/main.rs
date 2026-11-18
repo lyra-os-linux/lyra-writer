@@ -14,7 +14,7 @@ use std::thread;
 use std::time::Duration;
 
 use gio::prelude::*;
-use lyra_writer_core::{Device, Image, WriteError};
+use lyra_writer_core::{Device, Image, Phase, WriteError};
 use serde::Serialize;
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -144,17 +144,18 @@ fn write_start(app: AppHandle, state: State<Writing>, image: String, device: Str
         let result = lyra_writer_core::write_image(
             &PathBuf::from(&image),
             &device,
-            |written, total| {
-                let percent = (written * 100 / total.max(1)) as u8;
-                if last != Some(percent) {
-                    last = Some(percent);
-                    let _ = app.emit(
-                        "write-progress",
-                        Progress {
-                            phase: "write",
-                            percent,
-                        },
-                    );
+            |phase, done, total| {
+                // A releitura é mais rápida que a gravação: 80% da barra para
+                // gravar, 20% para verificar.
+                let share = done * 100 / total.max(1);
+                let (phase, percent) = match phase {
+                    Phase::Write => ("write", share * 80 / 100),
+                    Phase::Verify => ("verify", 80 + share * 20 / 100),
+                };
+                let percent = percent as u8;
+                if last != Some((phase, percent)) {
+                    last = Some((phase, percent));
+                    let _ = app.emit("write-progress", Progress { phase, percent });
                 }
             },
             &cancel,

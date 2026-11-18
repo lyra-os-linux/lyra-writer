@@ -15,8 +15,8 @@ Gravador de mídia de instalação do Lyra OS, inspirado no Fedora Media Writer
 | Lista das edições (Desktop "Odisseia", Server "Delos") | fixa no código; a versão final lê um manifesto assinado |
 | ISO local | seletor de arquivo nativo |
 | Pendrives | **reais**, lidos do udisks2: só discos inteiros, removíveis, por USB, sem `HintSystem` |
-| Gravação de uma ISO local | **real**, pelo udisks2 (`Block.OpenDevice` com `O_EXCL`, autorizado pelo polkit), sem rodar como root; desmonta as partições antes e faz `fsync` no fim |
-| Download, assinatura e verificação das edições | **simulados**: nenhum byte é gravado |
+| Gravação de uma ISO local | **real**, pelo udisks2 (`Block.OpenDevice` com `O_EXCL`, autorizado pelo polkit), sem rodar como root; desmonta as partições antes, faz `fsync` no fim e relê o pendrive para comparar o SHA-256 com o da ISO |
+| Download e assinatura das edições | **simulados**: nenhum byte é gravado |
 | Restaurar pendrive | botão sem ação |
 | Traduções | só pt-BR |
 

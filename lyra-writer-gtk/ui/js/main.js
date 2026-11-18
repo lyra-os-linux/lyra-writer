@@ -113,7 +113,7 @@ const RESTORE_PHASES = [
 ];
 // Uma ISO deste computador não é baixada nem conferida pela assinatura.
 const phases = () => (state.mode === "restore" ? RESTORE_PHASES
-  : state.image === "local" ? PHASES.filter(([id]) => id === "write") : PHASES);
+  : state.image === "local" ? PHASES.filter(([id]) => id === "write" || id === "verify") : PHASES);
 
 function go(step) {
   state.step = step;
@@ -372,7 +372,7 @@ function donePage() {
   return [h("div", { class: "result" },
     h("div", { class: "badge ok" }, icon("check", 40)),
     h("h2", { text: "Pendrive pronto!" }),
-    h("p", { class: "lead", text: `${imageLabel()} foi ${state.image === "local" ? "gravado" : "gravado e conferido"} em ${deviceObj()?.name ?? "seu pendrive"}.` }),
+    h("p", { class: "lead", text: `${imageLabel()} foi gravado e conferido em ${deviceObj()?.name ?? "seu pendrive"}.` }),
     h("ol", { class: "howto" },
       h("li", { text: "Deixe o pendrive conectado e reinicie o computador." }),
       h("li", { text: "Abra o menu de inicialização (geralmente F12, F11, F8 ou Esc)." }),

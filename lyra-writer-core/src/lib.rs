@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 
 mod write;
-pub use write::{WriteError, write_image};
+pub use write::{Phase, WriteError, write_image};
 
 use serde::Serialize;
 use zbus::blocking::Connection;
