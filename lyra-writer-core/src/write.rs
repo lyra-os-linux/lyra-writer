@@ -4,15 +4,18 @@
 //! udisks2, que pede a senha pelo polkit (`org.freedesktop.udisks2.open-device`)
 //! e devolve um descritor já aberto para escrita, com `O_EXCL`. Antes disso as
 //! partições montadas do pendrive são desmontadas, também pelo udisks2.
+//! Depois da gravação, o pendrive é relido e o SHA-256 comparado com o da
+//! ISO, calculado durante a cópia.
 
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::File;
-use std::io::{self, Read, Write};
-use std::os::fd::OwnedFd;
+use std::io::{self, Read, Seek, SeekFrom, Write};
+use std::os::fd::{AsRawFd, OwnedFd};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use sha2::{Digest, Sha256};
 use zbus::blocking::fdo::ObjectManagerProxy;
 use zbus::blocking::{Connection, Proxy};
 use zbus::zvariant::{ObjectPath, OwnedObjectPath, Value};
@@ -25,6 +28,15 @@ const FILESYSTEM: &str = "org.freedesktop.UDisks2.Filesystem";
 /// Tamanho de cada bloco copiado. 4 MiB dá progresso fluido sem custo de
 /// chamadas demais.
 const CHUNK: usize = 4 * 1024 * 1024;
+
+/// Em que parte do trabalho a gravação está.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Phase {
+    /// Copiando a ISO para o pendrive.
+    Write,
+    /// Relendo o pendrive e comparando com a ISO.
+    Verify,
+}
 
 /// Por que a gravação não terminou.
 #[derive(Debug)]
@@ -40,6 +52,8 @@ pub enum WriteError {
     Busy(String),
     /// O usuário cancelou.
     Cancelled,
+    /// O que foi relido do pendrive não é igual à ISO.
+    Mismatch,
     /// Falha ao ler a ISO.
     Image(io::Error),
     /// Falha ao escrever no pendrive (desconectado, mídia com defeito…).
@@ -63,6 +77,9 @@ impl fmt::Display for WriteError {
             Self::NotAuthorized => f.write_str("A gravação não foi autorizada."),
             Self::Busy(e) => write!(f, "O pendrive está em uso e não pôde ser desmontado: {e}"),
             Self::Cancelled => f.write_str("A gravação foi cancelada."),
+            Self::Mismatch => f.write_str(
+                "O conteúdo do pendrive não confere com a imagem. Ele pode estar com defeito; tente outro pendrive.",
+            ),
             Self::Image(e) => write!(f, "Não foi possível ler a imagem: {e}"),
             Self::Device(e) if e.kind() == io::ErrorKind::StorageFull => {
                 f.write_str("O pendrive foi desconectado ou é menor do que informa.")
@@ -92,12 +109,12 @@ fn udisks_error(e: zbus::Error) -> WriteError {
 ///
 /// O dispositivo é conferido de novo aqui, e não só na lista da interface:
 /// só discos que passam em [`crate::is_writable_target`] são abertos.
-/// `progress` recebe os bytes gravados e o total; `cancel` interrompe a
-/// cópia entre um bloco e outro.
+/// `progress` recebe a fase, os bytes já processados nela e o total;
+/// `cancel` interrompe o trabalho entre um bloco e outro.
 pub fn write_image(
     image: &Path,
     object: &str,
-    progress: impl FnMut(u64, u64),
+    progress: impl FnMut(Phase, u64, u64),
     cancel: &AtomicBool,
 ) -> Result<(), WriteError> {
     let device = crate::devices()
@@ -116,7 +133,7 @@ pub(crate) fn write_block(
     image: &Path,
     object: &str,
     device_size: u64,
-    mut progress: impl FnMut(u64, u64),
+    mut progress: impl FnMut(Phase, u64, u64),
     cancel: &AtomicBool,
 ) -> Result<(), WriteError> {
     let mut source = File::open(image).map_err(WriteError::Image)?;
@@ -135,8 +152,9 @@ pub(crate) fn write_block(
     let mut target = File::from(open_device(conn, object)?);
 
     let mut buf = vec![0u8; CHUNK];
+    let mut hasher = Sha256::new();
     let mut written = 0u64;
-    progress(0, total);
+    progress(Phase::Write, 0, total);
     loop {
         if cancel.load(Ordering::Relaxed) {
             return Err(WriteError::Cancelled);
@@ -145,11 +163,60 @@ pub(crate) fn write_block(
         if n == 0 {
             break;
         }
+        hasher.update(&buf[..n]);
         target.write_all(&buf[..n]).map_err(WriteError::Device)?;
         written += n as u64;
-        progress(written, total);
+        progress(Phase::Write, written, total);
     }
-    target.sync_all().map_err(WriteError::Device)
+    target.sync_all().map_err(WriteError::Device)?;
+    let expected: [u8; 32] = hasher.finalize().into();
+
+    // Descarta o cache do bloco: a releitura tem de vir do pendrive, não da
+    // memória.
+    // SAFETY: descritor válido, aberto acima.
+    unsafe { libc::posix_fadvise(target.as_raw_fd(), 0, 0, libc::POSIX_FADV_DONTNEED) };
+    target
+        .seek(SeekFrom::Start(0))
+        .map_err(WriteError::Device)?;
+    verify(
+        &mut target,
+        total,
+        &expected,
+        |done| progress(Phase::Verify, done, total),
+        cancel,
+    )
+}
+
+/// Relê `total` bytes e compara o SHA-256 com `expected`.
+fn verify(
+    device: &mut impl Read,
+    total: u64,
+    expected: &[u8; 32],
+    mut progress: impl FnMut(u64),
+    cancel: &AtomicBool,
+) -> Result<(), WriteError> {
+    let mut buf = vec![0u8; CHUNK];
+    let mut hasher = Sha256::new();
+    let mut done = 0u64;
+    progress(0);
+    while done < total {
+        if cancel.load(Ordering::Relaxed) {
+            return Err(WriteError::Cancelled);
+        }
+        let want = (total - done).min(CHUNK as u64) as usize;
+        let n = read_full(device, &mut buf[..want]).map_err(WriteError::Device)?;
+        if n == 0 {
+            return Err(WriteError::Mismatch);
+        }
+        hasher.update(&buf[..n]);
+        done += n as u64;
+        progress(done);
+    }
+    if hasher.finalize().as_slice() == expected {
+        Ok(())
+    } else {
+        Err(WriteError::Mismatch)
+    }
 }
 
 /// Lê até encher o buffer ou acabar o arquivo.
@@ -252,6 +319,69 @@ mod tests {
         assert_eq!(read_full(&mut r, &mut buf).unwrap(), 0);
     }
 
+    fn sha(data: &[u8]) -> [u8; 32] {
+        Sha256::digest(data).into()
+    }
+
+    #[test]
+    fn verify_accepts_identical_content() {
+        let iso: Vec<u8> = (0..10_000u32).map(|i| i as u8).collect();
+        // O pendrive é maior: o que vem depois da ISO não entra na conta.
+        let mut stick = iso.clone();
+        stick.extend_from_slice(&[0xAA; 4096]);
+        let mut seen = 0;
+        verify(
+            &mut stick.as_slice(),
+            iso.len() as u64,
+            &sha(&iso),
+            |d| seen = d,
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        assert_eq!(seen, iso.len() as u64);
+    }
+
+    #[test]
+    fn verify_rejects_a_changed_byte() {
+        let iso = vec![7u8; 10_000];
+        let mut stick = iso.clone();
+        stick[5_000] = 8;
+        let r = verify(
+            &mut stick.as_slice(),
+            iso.len() as u64,
+            &sha(&iso),
+            |_| {},
+            &AtomicBool::new(false),
+        );
+        assert!(matches!(r, Err(WriteError::Mismatch)));
+    }
+
+    #[test]
+    fn verify_rejects_a_short_device() {
+        let iso = vec![7u8; 10_000];
+        let r = verify(
+            &mut &iso[..9_000],
+            iso.len() as u64,
+            &sha(&iso),
+            |_| {},
+            &AtomicBool::new(false),
+        );
+        assert!(matches!(r, Err(WriteError::Mismatch)));
+    }
+
+    #[test]
+    fn verify_can_be_cancelled() {
+        let iso = vec![7u8; 10_000];
+        let r = verify(
+            &mut iso.as_slice(),
+            iso.len() as u64,
+            &sha(&iso),
+            |_| {},
+            &AtomicBool::new(true),
+        );
+        assert!(matches!(r, Err(WriteError::Cancelled)));
+    }
+
     #[test]
     fn auth_errors_are_recognized() {
         let msg = zbus::message::Message::method_call("/", "Ping")
@@ -288,7 +418,7 @@ mod tests {
             &iso,
             "/nao/usado",
             1024,
-            |_, _| {},
+            |_, _, _| {},
             &AtomicBool::new(false),
         );
         std::fs::remove_dir_all(&dir).unwrap();
@@ -332,10 +462,10 @@ mod tests {
             Path::new(&iso),
             &block,
             size,
-            |w, t| {
+            |phase, w, t| {
                 let p = w * 100 / t.max(1);
                 if p != last {
-                    eprint!("\r{p}%");
+                    eprint!("\r{phase:?} {p}%");
                     last = p;
                 }
             },
