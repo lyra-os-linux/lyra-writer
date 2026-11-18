@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lyra Writer</title>
+  <link rel="stylesheet" href="css/app.css">
+  <script src="js/boot.js"></script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body class="immersive">
+  <div class="window">
+    <header class="headerbar" data-drag>
+      <button class="icon-btn" id="back-btn" hidden></button>
+      <div class="title-wrap" data-drag><h1 data-drag>Lyra Writer</h1><span class="crumb" id="crumb" data-drag></span></div>
+      <div class="window-controls" id="window-controls"></div>
+    </header>
+    <nav class="stepper" id="stepper" aria-label="Etapas"></nav>
+    <main class="scroller"><div class="page" id="page"></div></main>
+    <footer class="actionbar" id="actions"></footer>
+  </div>
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+</body>
+</html>

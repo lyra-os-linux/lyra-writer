@@ -1,0 +1,11 @@
+[package]
+name = "lyra-writer-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Imagens do Lyra OS e pendrives (udisks2) para o Lyra Writer"
+
+[dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+zbus = "5.17.0"

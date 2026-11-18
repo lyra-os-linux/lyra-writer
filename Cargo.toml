@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = ["lyra-writer-core", "lyra-writer-gtk"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+rust-version = "1.92"
+repository = "https://github.com/lyra-os-linux/lyra-writer"
+
+[profile.release]
+lto = true
+strip = true
