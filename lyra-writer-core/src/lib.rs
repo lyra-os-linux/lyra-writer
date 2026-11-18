@@ -1,11 +1,14 @@
 //! Núcleo do Lyra Writer: as imagens oficiais do Lyra OS e os pendrives em
 //! que elas podem ser gravadas.
 //!
-//! Protótipo: a lista de imagens é fixa (a versão final lê um manifesto
-//! assinado pela chave "Lyra OS Release") e a gravação é simulada pela
-//! interface. A listagem de dispositivos é real e só lê o udisks2.
+//! A lista de imagens ainda é fixa (a versão final lê um manifesto assinado
+//! pela chave "Lyra OS Release"). A listagem de pendrives e a gravação de uma
+//! ISO local são reais, pelo udisks2 ([`write_image`]).
 
 use std::collections::HashMap;
+
+mod write;
+pub use write::{WriteError, write_image};
 
 use serde::Serialize;
 use zbus::blocking::Connection;
@@ -100,7 +103,11 @@ fn to_device(c: &Candidate) -> Device {
     Device {
         object: c.object.clone(),
         path,
-        name: if name.is_empty() { "Pendrive".into() } else { name },
+        name: if name.is_empty() {
+            "Pendrive".into()
+        } else {
+            name
+        },
         size: c.size,
         live: None,
     }
@@ -112,7 +119,13 @@ fn live_label(candidates: &[Candidate], drive: &str) -> Option<String> {
     candidates
         .iter()
         .find(|c| c.drive == drive && c.id_type == "iso9660")
-        .map(|c| if c.id_label.is_empty() { "Imagem gravada".into() } else { c.id_label.clone() })
+        .map(|c| {
+            if c.id_label.is_empty() {
+                "Imagem gravada".into()
+            } else {
+                c.id_label.clone()
+            }
+        })
 }
 
 /// Filtra e ordena os candidatos.
@@ -120,7 +133,10 @@ pub fn select(candidates: &[Candidate]) -> Vec<Device> {
     let mut devices: Vec<Device> = candidates
         .iter()
         .filter(|c| is_writable_target(c))
-        .map(|c| Device { live: live_label(candidates, &c.drive), ..to_device(c) })
+        .map(|c| Device {
+            live: live_label(candidates, &c.drive),
+            ..to_device(c)
+        })
         .collect();
     devices.sort_by(|a, b| a.path.cmp(&b.path));
     devices
@@ -211,25 +227,39 @@ mod tests {
 
     #[test]
     fn internal_disk_is_never_listed() {
-        let internal = Candidate { removable: false, connection_bus: String::new(), hint_system: true, ..usb() };
+        let internal = Candidate {
+            removable: false,
+            connection_bus: String::new(),
+            hint_system: true,
+            ..usb()
+        };
         assert!(select(&[internal]).is_empty());
     }
 
     #[test]
     fn partitions_are_never_listed() {
-        let part = Candidate { is_partition: true, ..usb() };
+        let part = Candidate {
+            is_partition: true,
+            ..usb()
+        };
         assert!(select(&[part]).is_empty());
     }
 
     #[test]
     fn system_hint_wins_over_removable() {
-        let sys = Candidate { hint_system: true, ..usb() };
+        let sys = Candidate {
+            hint_system: true,
+            ..usb()
+        };
         assert!(select(&[sys]).is_empty());
     }
 
     #[test]
     fn written_stick_offers_restore() {
-        let disk = Candidate { drive: "d1".into(), ..usb() };
+        let disk = Candidate {
+            drive: "d1".into(),
+            ..usb()
+        };
         let part = Candidate {
             object: "/org/freedesktop/UDisks2/block_devices/sdb1".into(),
             is_partition: true,
@@ -245,7 +275,11 @@ mod tests {
 
     #[test]
     fn plain_stick_has_nothing_to_restore() {
-        let disk = Candidate { drive: "d1".into(), id_type: "vfat".into(), ..usb() };
+        let disk = Candidate {
+            drive: "d1".into(),
+            id_type: "vfat".into(),
+            ..usb()
+        };
         assert_eq!(select(&[disk])[0].live, None);
     }
 

@@ -3,17 +3,18 @@
 //! Lyra Writer — protótipo. Mesmo esqueleto do vega-gtk: Tauri 2 com
 //! WebKitGTK, barra de título própria, tema e cor de destaque do GNOME.
 //!
-//! A GRAVAÇÃO É SIMULADA: nenhum byte vai para o dispositivo. A versão final
-//! abre o bloco pelo udisks2 (`OpenDevice`, autorizado pelo polkit) em vez de
-//! rodar como root.
+//! A gravação de uma ISO local é real: o núcleo abre o bloco pelo udisks2
+//! (`OpenDevice`, autorizado pelo polkit), sem rodar como root. O download
+//! das edições e a restauração ainda são simulados.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
 use gio::prelude::*;
-use lyra_writer_core::{Device, Image};
+use lyra_writer_core::{Device, Image, WriteError};
 use serde::Serialize;
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -59,7 +60,10 @@ fn watch_interface(app: AppHandle) {
         }
     });
     let _ = settings.string("color-scheme");
-    if settings.settings_schema().is_some_and(|s| s.has_key("accent-color")) {
+    if settings
+        .settings_schema()
+        .is_some_and(|s| s.has_key("accent-color"))
+    {
         let _ = settings.string("accent-color");
     }
     std::mem::forget(settings);
@@ -90,11 +94,11 @@ fn watch_devices(app: AppHandle) {
     thread::spawn(move || {
         let mut last: Option<Vec<Device>> = None;
         loop {
-            if let Ok(now) = lyra_writer_core::devices() {
-                if last.as_ref() != Some(&now) {
-                    let _ = app.emit("devices-changed", &now);
-                    last = Some(now);
-                }
+            if let Ok(now) = lyra_writer_core::devices()
+                && last.as_ref() != Some(&now)
+            {
+                let _ = app.emit("devices-changed", &now);
+                last = Some(now);
             }
             thread::sleep(Duration::from_millis(1500));
         }
@@ -124,10 +128,50 @@ const WRITE: &[(&str, u8, u8)] = &[
 /// partição única e formatar para uso comum (exFAT).
 const RESTORE: &[(&str, u8, u8)] = &[("wipe", 0, 40), ("partition", 40, 60), ("format", 60, 100)];
 
+/// Grava a imagem no pendrive. `image` é o caminho de uma ISO local ou o id
+/// de uma edição; o download das edições ainda é simulado.
 #[tauri::command]
 fn write_start(app: AppHandle, state: State<Writing>, image: String, device: String) {
-    eprintln!("lyra-writer: SIMULAÇÃO de gravação de {image} em {device}");
-    run(app, &state, WRITE, 90);
+    if lyra_writer_core::images().iter().any(|i| i.id == image) {
+        eprintln!("lyra-writer: SIMULAÇÃO de gravação de {image} em {device}");
+        run(app, &state, WRITE, 90);
+        return;
+    }
+    let cancel = state.cancel.clone();
+    cancel.store(false, Ordering::Relaxed);
+    thread::spawn(move || {
+        let mut last = None;
+        let result = lyra_writer_core::write_image(
+            &PathBuf::from(&image),
+            &device,
+            |written, total| {
+                let percent = (written * 100 / total.max(1)) as u8;
+                if last != Some(percent) {
+                    last = Some(percent);
+                    let _ = app.emit(
+                        "write-progress",
+                        Progress {
+                            phase: "write",
+                            percent,
+                        },
+                    );
+                }
+            },
+            &cancel,
+        );
+        match result {
+            Ok(()) => {
+                let _ = app.emit("write-done", ());
+            }
+            Err(WriteError::Cancelled) => {
+                let _ = app.emit("write-cancelled", ());
+            }
+            Err(e) => {
+                eprintln!("lyra-writer: gravação de {image} em {device} falhou: {e:?}");
+                let _ = app.emit("write-failed", e.to_string());
+            }
+        }
+    });
 }
 
 #[tauri::command]

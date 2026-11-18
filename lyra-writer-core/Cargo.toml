@@ -7,5 +7,6 @@ rust-version.workspace = true
 description = "Imagens do Lyra OS e pendrives (udisks2) para o Lyra Writer"
 
 [dependencies]
+libc = "0.2.191"
 serde = { version = "1.0.228", features = ["derive"] }
 zbus = "5.17.0"
