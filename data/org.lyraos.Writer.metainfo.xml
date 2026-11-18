@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.lyraos.Writer</id>
+  <name>Lyra Writer</name>
+  <summary>Write Lyra OS installation media to a USB stick</summary>
+  <summary xml:lang="pt-BR">Grave a mídia de instalação do Lyra OS num pendrive</summary>
+  <summary xml:lang="es-ES">Grabe el medio de instalación de Lyra OS en una memoria USB</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer id="org.lyraos">
+    <name>Lyra OS</name>
+  </developer>
+
+  <description>
+    <p>
+      Lyra Writer writes a Lyra OS image to a USB stick and checks the result,
+      like the Fedora Media Writer. It only lists whole removable USB disks, opens
+      them through udisks2 with polkit authorization and never runs as root.
+    </p>
+    <p xml:lang="pt-BR">
+      O Lyra Writer grava uma imagem do Lyra OS num pendrive e confere o
+      resultado, como o Fedora Media Writer. Ele só lista discos USB removíveis
+      inteiros, abre o dispositivo pelo udisks2 com autorização do polkit e nunca
+      roda como root.
+    </p>
+    <p xml:lang="es-ES">
+      Lyra Writer graba una imagen de Lyra OS en una memoria USB y comprueba el
+      resultado, como Fedora Media Writer. Solo muestra discos USB extraíbles
+      completos, los abre mediante udisks2 con autorización de polkit y nunca se
+      ejecuta como root.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">org.lyraos.Writer.desktop</launchable>
+  <url type="homepage">https://github.com/lyra-os-linux/lyra-writer</url>
+  <url type="bugtracker">https://github.com/lyra-os-linux/lyra-writer/issues</url>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-11-18">
+      <description>
+        <p>First preview: writes a local ISO through udisks2 and verifies it by SHA-256. Downloading the editions and restoring a stick are still simulated.</p>
+      </description>
+    </release>
+  </releases>
+</component>

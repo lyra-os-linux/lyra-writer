@@ -1,0 +1,12 @@
+-------------------------------------------------------------------
+Wed Nov 18 00:00:00 UTC 2026 - rodrigo@lyraos.com.br
+
+- Initial package of Lyra Writer 0.1.0 (preview):
+  * List whole removable USB disks from udisks2; internal disks,
+    partitions and system devices are never shown.
+  * Write a local ISO through udisks2 Block.OpenDevice (O_EXCL,
+    polkit authorization), unmounting the stick first, without
+    running as root.
+  * Verify the written stick against the ISO by SHA-256.
+  * Downloading the editions and restoring a stick are still
+    simulated.

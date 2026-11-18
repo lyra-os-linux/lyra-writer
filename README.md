@@ -19,6 +19,7 @@ Gravador de mídia de instalação do Lyra OS, inspirado no Fedora Media Writer
 | Download e assinatura das edições | **simulados**: nenhum byte é gravado |
 | Restaurar pendrive | botão sem ação |
 | Traduções | só pt-BR |
+| Empacotamento | RPM em `packaging/` (cargo_vendor), compilado localmente e enviado ao `home:rodrigosbrito:lyra:staging`; sem CI no GitHub |
 
 ## Estrutura
 
@@ -41,4 +42,3 @@ e roda só à mão. Os passos estão no comentário de `loop_write`, em
 - Teste negativo de autorização.
 - Manifesto e checksum assinados pela chave "Lyra OS Release" (`contracts.toml`).
 - gettext em en, pt-BR e es, como no Vega.
-- Empacotamento no OBS.
