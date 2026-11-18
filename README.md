@@ -15,13 +15,14 @@ Gravador de mídia de instalação do Lyra OS, inspirado no Fedora Media Writer
 | Lista das edições (Desktop "Odisseia", Server "Delos") | fixa no código; a versão final lê um manifesto assinado |
 | ISO local | seletor de arquivo nativo |
 | Pendrives | **reais**, lidos do udisks2: só discos inteiros, removíveis, por USB, sem `HintSystem` |
-| Download, assinatura, gravação, verificação | **simulados**: nenhum byte é gravado |
+| Gravação de uma ISO local | **real**, pelo udisks2 (`Block.OpenDevice` com `O_EXCL`, autorizado pelo polkit), sem rodar como root; desmonta as partições antes e faz `fsync` no fim |
+| Download, assinatura e verificação das edições | **simulados**: nenhum byte é gravado |
 | Restaurar pendrive | botão sem ação |
 | Traduções | só pt-BR |
 
 ## Estrutura
 
-- `lyra-writer-core`: catálogo de imagens e filtro de dispositivos (com testes);
+- `lyra-writer-core`: catálogo de imagens, filtro de dispositivos e gravação (com testes);
 - `lyra-writer-gtk`: frontend Tauri (binário `lyra-writer`), interface em `ui/`.
 
 ## Rodar
@@ -31,9 +32,12 @@ cargo test -p lyra-writer-core
 cargo run -p lyra-writer-gtk
 ```
 
+O teste de gravação de verdade usa um dispositivo loop no lugar do pendrive
+e roda só à mão. Os passos estão no comentário de `loop_write`, em
+`lyra-writer-core/src/write.rs`.
+
 ## Para a versão final
 
-- Gravação pelo udisks2 (`OpenDevice`, autorizada pelo polkit), sem rodar como root.
 - Teste negativo de autorização.
 - Manifesto e checksum assinados pela chave "Lyra OS Release" (`contracts.toml`).
 - gettext em en, pt-BR e es, como no Vega.

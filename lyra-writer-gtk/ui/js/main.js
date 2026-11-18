@@ -111,7 +111,9 @@ const RESTORE_PHASES = [
   ["partition", "Criando a partição", "Criar uma partição"],
   ["format", "Formatando", "Formatar em exFAT"],
 ];
-const phases = () => (state.mode === "restore" ? RESTORE_PHASES : PHASES);
+// Uma ISO deste computador não é baixada nem conferida pela assinatura.
+const phases = () => (state.mode === "restore" ? RESTORE_PHASES
+  : state.image === "local" ? PHASES.filter(([id]) => id === "write") : PHASES);
 
 function go(step) {
   state.step = step;
@@ -303,7 +305,7 @@ async function startRestore(dev) {
 
 async function startWrite() {
   state.mode = "write";
-  state.progress = { phase: "download", percent: 0 };
+  state.progress = { phase: phases()[0][0], percent: 0 };
   state.startedAt = performance.now();
   state.writingTo = state.device;
   go("writing");
@@ -370,7 +372,7 @@ function donePage() {
   return [h("div", { class: "result" },
     h("div", { class: "badge ok" }, icon("check", 40)),
     h("h2", { text: "Pendrive pronto!" }),
-    h("p", { class: "lead", text: `${imageLabel()} foi gravado e conferido em ${deviceObj()?.name ?? "seu pendrive"}.` }),
+    h("p", { class: "lead", text: `${imageLabel()} foi ${state.image === "local" ? "gravado" : "gravado e conferido"} em ${deviceObj()?.name ?? "seu pendrive"}.` }),
     h("ol", { class: "howto" },
       h("li", { text: "Deixe o pendrive conectado e reinicie o computador." }),
       h("li", { text: "Abra o menu de inicialização (geralmente F12, F11, F8 ou Esc)." }),
@@ -388,7 +390,7 @@ function errorPage() {
 
 function actions() {
   const btn = (cls, text, onclick, disabled, ...pre) => h("button", { class: `btn lg ${cls}`, onclick, disabled }, ...pre, text);
-  const sim = h("span", { class: "sim", text: "Protótipo · gravação simulada" });
+  const sim = h("span", { class: "sim", text: "Protótipo · download e restauração simulados" });
   switch (state.step) {
     case "image":
       return [
@@ -459,6 +461,11 @@ async function main() {
   on("devices-changed", onDevices);
   on("write-progress", (p) => { state.progress = p; if (writing()) render(); });
   on("write-done", () => go("done"));
+  on("write-failed", (message) => {
+    if (!writing()) return;
+    state.error = message;
+    go("error");
+  });
   on("write-cancelled", () => {
     if (!writing()) return;
     toast(state.mode === "restore" ? "Restauração cancelada." : "Gravação cancelada.");
